@@ -132,7 +132,8 @@ def get_categories():
     cur = conn.cursor()
     cur.execute('''SELECT a.categoryId, a.categoryCode, a.categoryDesc
                    FROM categories a
-                   ORDer BY a.seq
+                   WHERE EXISTS(select 1 FROM questions b INNER JOIN answers c ON b.questionCode=c.questionCode WHERE a.categoryCode=b.categoryCode LIMIT 1)
+                   ORDER BY a.seq
                ''')
     
     data = [dict((cur.description[i][0], value) for i, value in enumerate(row)) for row in cur.fetchall()]
@@ -145,7 +146,7 @@ def get_categories():
 def post_rooms():
 
     # using random.choices() generating random strings
-    roomCode = ''.join(random.choices(string.ascii_letters, k=16)) # initializing size of string
+    roomCode = ''.join(random.choices(string.ascii_letters, k=5)) # initializing size of string
     categoryCode = request.json['categoryCode']
 
     # connection for MariaDB
@@ -200,6 +201,7 @@ def post_games():
 
     roomCode     = request.json['roomCode'] 
     clientId     = request.json['clientId']
+    nickname     = request.json['nickname']
 
     # connection for MariaDB
     conn = mariadb.connect(**config)
@@ -209,8 +211,9 @@ def post_games():
         """INSERT INTO 
             guessit.games (
                 roomCode,
-                clientId)
-        VALUES (%s,%s)""", (roomCode, clientId))
+                clientId,
+                nickname)
+        VALUES (%s,%s,%s)""", (roomCode, clientId, nickname))
     
     #data = f"{cur.rowcount} details inserted"
     data = roomCode
@@ -236,7 +239,7 @@ def get_game_by_roomCode():
     conn = mariadb.connect(**config)
     # create a connection cursor
     cur = conn.cursor()
-    cur.execute('''SELECT a.roomCode, a.clientId
+    cur.execute('''SELECT a.roomCode, a.clientId, a.nickname
                    FROM games a
                    INNER JOIN rooms b 
                    ON a.roomCode=b.roomCode
