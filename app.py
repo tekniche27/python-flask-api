@@ -146,7 +146,7 @@ def get_categories():
 def post_rooms():
 
     # using random.choices() generating random strings
-    roomCode = ''.join(random.choices(string.ascii_letters, k=5)) # initializing size of string
+    roomCode = ''.join(random.choices(string.ascii_letters, k=6)).lower() # initializing size of string
     categoryCode = request.json['categoryCode']
 
     # connection for MariaDB
@@ -337,7 +337,57 @@ def update_games():
     conn.close()
     return jsonify(data)
     
- 
+@app.route('/games/checkifexists', methods=['GET'])
+def check_if_record_exists():
+
+    args = request.args
+    roomCode = args.get('roomCode')
+    clientId = args.get('clientId')
+
+    if roomCode is None:
+        return jsonify({'error': 'room code query parameter is required'}), 400
+    
+    if clientId is None:
+        return jsonify({'error': 'clientId query parameter is required'}), 400
+
+     # connection for MariaDB
+    conn = mariadb.connect(**config)
+    # create a connection cursor
+    cur = conn.cursor()
+    cur.execute('''SELECT 1 as recordExists
+                   FROM games a
+                   WHERE a.roomCode = %s AND a.clientId = %s
+                   ''', (roomCode,clientId,))
+    #data = cur.fetchall()
+
+    data = [dict((cur.description[i][0], value) for i, value in enumerate(row)) for row in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
+
+@app.route('/leaderboards', methods=['GET'])
+def get_leaderboards():
+     # connection for MariaDB
+    conn = mariadb.connect(**config)
+    # create a connection cursor
+    cur = conn.cursor()
+    cur.execute('''SELECT nickname, 
+                   SUM(score) as score,
+                   DENSE_RANK() OVER (
+                   ORDER BY SUM(score) DESC
+                   ) rank 
+                FROM games
+                GROUP BY nickname
+                ORDER BY SUM(score) DESC;
+                ''')
+    
+    data = [dict((cur.description[i][0], value) for i, value in enumerate(row)) for row in cur.fetchall()]
+    #data = cur.fetchall()
+    cur.close()
+    conn.close()
+    return jsonify(data)
+
 
 if __name__ == '__main__':
     #app.run(port=5000, debug=True)
